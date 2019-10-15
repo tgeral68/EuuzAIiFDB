@@ -8,11 +8,10 @@
 - tqdm
 - matplotlib
 
-You can use conda or pip to install all the dependencies
+You can use conda or pip to install all the dependencies.
 
 ## Start an Experiment
-A complete examples is given in the script/example.sh script file. For the first experiment the script will prompt the path to save data and the log_path to store log of experiments.
-
+A complete example is given in the script/example.sh script file. For the first experiment, the script will prompt the path to save data and the log_path to store the experiment logs.
 ## Datasets
 
 |       Dataset         |Location                        |
@@ -23,12 +22,12 @@ A complete examples is given in the script/example.sh script file. For the first
 ## Learning Embeddings Parameters
 |       Parameter name        | Description                      |
 |----------------|------------------------------- |
-|--dataset | dataset given with lowercase|
+|--dataset | Dataset given with lowercase|
 |--lr |  Learning rate (for gradient update) |
 |--alpha         | O1 loss weigth   |
 |--beta        | O2 loss weigth   |
 |--n-centroid        | Number of centroids to perform the kmeans   |
 |--walk-lenght       | Size of path used in the random walk   |
 |--context-size      | Size of context (window on the path) |
-|--negative-sampling | Number of negative examples to use in the loss function |
-|--size      | Embeddings dimenssion size  |
+|--negative-sampling | Number of negatives examples to use in the loss function |
+|--size      | Embeddings dimension size  |
