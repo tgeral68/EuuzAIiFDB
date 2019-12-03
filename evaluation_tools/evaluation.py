@@ -2,11 +2,140 @@ import torch
 from function_tools import poincare_function as pf
 from function_tools import poincare_alg as pa
 from function_tools import euclidean_function as ef
+import tqdm
 from kmeans_tools.kmeans_hyperbolic import PoincareKMeans
 from collections import Counter
 import numpy as np
 import math
 import itertools
+
+
+############################ NEW #####################
+# SCORING FUNCTION
+def _precision_at(prediction, ground_truth, at=5):
+    prediction_value, prediction_index = (-prediction).sort(-1)
+    trange = torch.arange(len(prediction)).unsqueeze(-1).expand(len(prediction), at).flatten()
+    indexes = prediction_index[:,:at].flatten()
+    score = ((ground_truth[trange, indexes]).float().view(len(prediction), at)).sum(-1)/at
+    return score.mean().item()
+
+def nmi(prediction, ground_truth):
+    N = prediction.size(0)
+    # the number of clusters
+    K = prediction.size(-1)
+
+    I = {i for i in range(len(prediction))}
+
+    PN = []
+    GN = []
+    den = 0
+    for i in range(K):
+        PN.append(set(prediction[:, i].nonzero().flatten().tolist()))
+        GN.append(set(ground_truth[:, i].nonzero().flatten().tolist()))
+        if(len(PN[-1]) != 0):
+            den += len(PN[-1]) * math.log(len(PN[-1])/N)
+        if(len(GN[-1]) != 0):
+            den += len(GN[-1]) * math.log(len(GN[-1])/N)
+    num = 0
+    for a in PN:
+        for b in GN:
+            N_ij = len(a.intersection(b))
+            if(N_ij != 0):
+                num += N_ij * math.log((N_ij * N)/(len(a) *len(b) ))
+    
+    return -2 * (num/den)
+
+def mean_conductance(prediction, adjency_matrix):
+    N = prediction.size(0)
+    # the number of clusters
+    K = prediction.size(-1)
+    # print(K)
+
+    I = {i for i in range(len(prediction))}
+
+    score = 0
+    for c in range(K):
+        # print(prediction[:, c].nonzero().flatten())
+        c_nodes = set(prediction[:, c].nonzero().flatten().tolist())
+        nc_nodes = I - c_nodes
+        cut_score_a = 0
+        for i in c_nodes:
+            cut_score_a += len(set(adjency_matrix[i]) - c_nodes)
+            # for j in nc_nodes:
+            #     if(j in adjency_matrix[i]):
+            #         cut_score_a += 1
+        cut_score_b = 0
+        for i in c_nodes:
+            cut_score_b += len(adjency_matrix[i])
+
+        cut_score_c = 0
+        for i in nc_nodes:
+            cut_score_c += len(adjency_matrix[i])
+        if(cut_score_b==0 or cut_score_c ==0):
+            score += 0 
+        else:
+            score += cut_score_a/(min(cut_score_b, cut_score_c))
+    
+    return score/K
+
+class PrecisionScore(object):
+    def __init__(self, at=5):
+        self.at = at
+
+    def __call__(self, x, y):
+        return _precision_at(x, y, at=self.at)
+
+
+# META EVAL
+class CrossValEvaluation(object):
+    def __init__(self, embeddings, ground_truth, nb_set=5, algs_object=None):
+        self.algs_object = algs_object
+        self.z = embeddings
+        self.gt = ground_truth
+        self.nb_set = nb_set
+        # split set
+        subset_index = torch.randperm(len(self.z))
+        nb_value = len(self.z)//nb_set
+        self.subset_indexer = [subset_index[nb_value *i:min(nb_value * (i+1), len(self.z))] for i in range(nb_set)]
+        self.all_algs = []
+        pb = tqdm.trange(len(self.subset_indexer))
+
+        for i, test_index in zip(pb, self.subset_indexer):
+            # create train dataset being concatenation of not current test set
+            train_index = torch.cat([ subset for ci, subset in enumerate(self.subset_indexer) if(i!=ci)], 0)
+            
+            # get embeddings sets
+            train_embeddings = self.z[train_index]
+            test_embeddings  = self.z[test_index]
+
+            # get ground truth sets
+            train_labels = self.gt[train_index]
+            test_labels  =  self.gt[test_index]
+            algs = self.algs_object(self.gt.size(-1))
+            algs.fit(train_embeddings, Y=train_labels)
+            self.all_algs.append(algs)
+        
+    def get_score(self, scoring_function):
+        scores = []
+        pb = tqdm.trange(len(self.subset_indexer))
+        for i, test_index in zip(pb, self.subset_indexer):
+            # create train dataset being concatenation of not current test set
+            train_index = torch.cat([ subset for ci, subset in enumerate(self.subset_indexer) if(i!=ci)], 0)
+            
+            # get embeddings sets
+            train_embeddings = self.z[train_index]
+            test_embeddings  = self.z[test_index]
+
+            # get ground truth sets
+            train_labels = self.gt[train_index]
+            test_labels  =  self.gt[test_index]
+
+            # must give the matrix of scores
+            prediction = self.all_algs[i].probs(test_embeddings)
+
+            set_score = scoring_function(prediction, test_labels)
+            scores.append(set_score)
+        return scores
 
 
 # in the following function we perform prediction using disc product

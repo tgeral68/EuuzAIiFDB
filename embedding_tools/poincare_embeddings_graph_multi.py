@@ -25,6 +25,8 @@ class RiemannianEmbedding(nn.Module):
         else:
             self.n_dist = negative_distribution
 
+
+
     def forward(self, x):
         return self.W(x)
 
@@ -36,8 +38,14 @@ class RiemannianEmbedding(nn.Module):
             g['lr'] = lr
     
     def fit(self, dataloader, alpha=1.0, beta=1.0, max_iter=100,
-            negative_sampling=5):
-        
+            negative_sampling=5, log_callback=None, logger=None):
+
+        self.log_callback = log_callback
+        self.logger = logger   
+
+        lcres = {}
+        calback_log_list = []
+        loss_list = []
         progress_bar = tqdm.trange(max_iter) if(self.verbose) else range(max_iter)
         for i in progress_bar:
             loss_value1, loss_value2, = 0,0
@@ -69,5 +77,11 @@ class RiemannianEmbedding(nn.Module):
                 loss_value2 = loss_o2.mean().item()
                 loss.backward()
                 self.optimizer.step()
+            if(self.log_callback is not None):
+                lcres = self.log_callback()
+                if(self.logger is not None):
+                    calback_log_list.append(lcres)
+                    self.logger["calback-log"] = calback_log_list
+                        
             if(self.verbose):
-                progress_bar.set_postfix({"O1":loss_value1, "O2":loss_value2})
+                progress_bar.set_postfix(dict({"O1":loss_value1, "O2":loss_value2}.items() | lcres.items()))

@@ -3,7 +3,7 @@ import tqdm
 import os 
 
 import torch
-import pytorch_categorical
+from function_tools import pytorch_categorical
 from torch.utils.data import DataLoader
 
 import random 
@@ -14,10 +14,10 @@ from os.path import join
 from embedding_tools.poincare_embeddings_graph_multi import RiemannianEmbedding as PEmbed
 
 from data_tools import corpora_tools, corpora, data_tools, logger
-from evaluation_tools import evaluation
-from visualisation_tools import plot_tools
-from optim_tools import optimizer
+from evaluation_tools import evaluation, callback_tools
 
+from optim_tools import optimizer
+from kmeans_tools import kmeans_hyperbolic as kmh
 
 parser = argparse.ArgumentParser(description='Start an experiment')
 
@@ -174,13 +174,24 @@ os.makedirs(join(log_path,args.id+"/"), exist_ok=True)
 logger_object = logger.JSONLogger(join(log_path,args.id+"/log.json"))
 logger_object.append(vars(args))
 
+def log_callback_conductance(embeddings, adjancy_matrix, n_centroid):
+    kmeans = kmh.PoincareKMeans(n_centroid)
+    kmeans.fit(embeddings)
+    i =  kmeans.predict(embeddings)
+    r = torch.arange(0, i.size(0), device=i.device)
+    prediction = torch.zeros(embeddings.size(0), n_centroid)
+    prediction[r,i] = 1
+    return {"conductance":evaluation.mean_conductance(prediction, adjancy_matrix)}
 
 alpha, beta = args.alpha, args.beta
 embedding_alg = PEmbed(len(embedding_dataset), size=args.size, lr=args.lr, cuda=args.cuda, negative_distribution=frequency,
                         optimizer_method=optimizer_dict[args.embedding_optimizer])
 
+cf =callback_tools.generic_callback({"embeddings": embedding_alg.get_PoincareEmbeddings}, 
+                                {"adjancy_matrix":X, "n_centroid": args.n_centroid},
+                                log_callback_conductance)
 embedding_alg.fit(training_dataloader, alpha=alpha, beta=beta, max_iter=args.epoch,
-                  negative_sampling=args.negative_sampling)
+                  negative_sampling=args.negative_sampling, log_callback=cf, logger=logger_object)
 
 embeds = embedding_alg.get_PoincareEmbeddings().cpu()
 

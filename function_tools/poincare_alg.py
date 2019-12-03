@@ -2,7 +2,7 @@ import math
 from function_tools import poincare_function as pf
 
 # z and wik must have same dimenssion except if wik is not given
-def barycenter(z, wik=None, lr=5e-3, tau=5e-3, max_iter=math.inf, distance=pf.distance, normed=False):
+def barycenter(z, wik=None, lr=5e-2, tau=5e-3, max_iter=math.inf, distance=pf.distance, normed=False):
     if(wik is None):
         wik = 1.
     else:

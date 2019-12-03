@@ -1,20 +1,23 @@
 import argparse
-import tqdm
 import os
-
 from os.path import join
 
 import torch
-import pytorch_categorical
-from torch.utils.data import DataLoader
 
-from multiprocessing import Process, Manager
+
+
+import matplotlib.pyplot as plt
+import matplotlib.colors as plt_colors
+import numpy as np
+
+
 from data_tools import corpora_tools, corpora, data_tools, logger
-from evaluation_tools import evaluation
-from visualisation_tools import plot_tools
+
+from visualisation_tools import poincare_plot
+
 from kmeans_tools import kmeans_hyperbolic as kmh
 
-from optim_tools import optimizer
+
 
 parser = argparse.ArgumentParser(description='Load embeddings and perform kmeans on it')
 
@@ -62,9 +65,6 @@ kmeans.fit(representations)
 gt_colors = []
 pr_colors = []
 
-import matplotlib.pyplot as plt
-import matplotlib.colors as plt_colors
-import numpy as np
 unique_label = np.unique(sum([ y for k, y in D.Y.items()],[]))
 
 prediction = kmeans.predict(representations)
@@ -73,6 +73,24 @@ for i in range(len(D.Y)):
     gt_colors.append(plt_colors.hsv_to_rgb([D.Y[i][0]/(len(unique_label)),0.5,0.8]))
     pr_colors.append(plt_colors.hsv_to_rgb([prediction[i].item()/(len(unique_label)),0.5,0.8]))
 
-plot_tools.kmean_plot(representations, kmeans.centroids, gt_colors, pr_colors, folder_xp, prefix=dataset_name)
+# plotting unsupervised prediction
+poincare_plot.plot_embeddings(representations, centroids=kmeans.centroids,
+                              colors=pr_colors, save_folder=folder_xp, 
+                              file_name="unsupervised_prediction_embeddings.png")
 
+# plotting ground truth
+poincare_plot.plot_embeddings(representations, colors=gt_colors, save_folder=folder_xp,
+                              file_name="ground_truth_embeddings.png")
 
+ground_truth = torch.LongTensor([[ 1 if(y+1 in Y[i]) else 0 for y in range(n_centroid)] for i in range(len(X))])
+kmeans = kmh.PoincareKMeans(n_centroid)
+kmeans.fit(representations, ground_truth)
+prediction = kmeans.predict(representations)
+pr_colors = []
+for i in range(len(D.Y)):
+    pr_colors.append(plt_colors.hsv_to_rgb([prediction[i].item()/(len(unique_label)),0.5,0.8]))
+
+# plotting supervised prediction
+poincare_plot.plot_embeddings(representations, centroids=kmeans.centroids,
+                              colors=pr_colors, save_folder=folder_xp, 
+                              file_name="supervised_prediction_embeddings.png")

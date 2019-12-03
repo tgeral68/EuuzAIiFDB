@@ -9,8 +9,9 @@ from function_tools import poincare_alg as pa
 from function_tools import poincare_function as pf
 
 import pytorch_categorical
+
 class PoincareKMeans(object):
-    def __init__(self, n_clusters, min_cluster_size=5, verbose=False, init_method="random"):
+    def __init__(self, n_clusters, min_cluster_size=2, verbose=False, init_method="random"):
         self._n_c = n_clusters
         self._distance = pf.distance
         self.centroids = None
@@ -24,7 +25,7 @@ class PoincareKMeans(object):
             if(lx.shape[0] <= self._mec):
                 lx = x[random.randint(0,len(x)-1)].unsqueeze(0)
             centroids[i] = pa.barycenter(lx, normed=True)
-        return centroids
+        return centroids 
     
     def _expectation(self, centroids, x):
         N, K, D = x.shape[0], self.centroids.shape[0], x.shape[1]
@@ -58,25 +59,41 @@ class PoincareKMeans(object):
         self.centroids_index = torch.tensor(centroids_index, device=X.device).long()
         self.centroids = X[self.centroids_index]
 
-    def fit(self, X, max_iter=500):
-        with torch.no_grad():
-            if(self._mec < 0):
-                self._mec = len(X)/(self._n_c**2)
-            if(self.centroids is None):
-                if(self._init_method == "kmeans++"):
-                    self.__init_kmeansPP(X)
-                else:
-                    self._init_random(X)
-            for iteration in range(max_iter):
-                if(iteration >= 1):
-                    old_indexes = self.indexes
-                self.indexes = self._expectation(self.centroids, X)
-                self.centroids = self._maximisation(X, self.indexes)
-                if(iteration >= 1):
-                    if((old_indexes == self.indexes).float().mean() == 1):
-                        self.cluster_centers_  =  self.centroids
-                        return self.centroids
+    def fit(self, X, Y=None, max_iter=100):
+        if(Y is None):
+            with torch.no_grad():
+                if(self._mec < 0):
+                    self._mec = len(X)/(self._n_c**2)
+                if(self.centroids is None):
+                    if(self._init_method == "kmeans++"):
+                        self.__init_kmeansPP(X)
+                    else:
+                        self._init_random(X)
+                for iteration in range(max_iter):
+
+                    if(iteration >= 1):
+                        old_indexes = self.indexes
+                    self.indexes = self._expectation(self.centroids, X)
+                    self.centroids = self._maximisation(X, self.indexes)
+
+
+
+                    if(iteration >= 1):   
+                        if((old_indexes == self.indexes).float().mean() == 1):
+                            # print(" Iteration end : ", iteration)
+                            self.cluster_centers_  =  self.centroids
+                            # print("first ", lt[0])
+                            # print(lt)
+                            # print("time mean ", sum(lt,0)/iteration)
+                            # print("NB iter ", iteration)
+                            return self.centroids
+                self.cluster_centers_  =  self.centroids
+                return self.centroids
+        else:
+            self.indexes = Y.max(-1)[1]
+            self.centroids = self._maximisation(X, self.indexes)
             self.cluster_centers_  =  self.centroids
+            # print(self.centroids)
             return self.centroids
 
     def predict(self, X):
@@ -93,6 +110,12 @@ class PoincareKMeans(object):
             stds.append(value[indexes==i].sum())
         stds = torch.Tensor(stds)
         return stds
+    def probs(self, X):
+        predicted = self._expectation(self.centroids, X).squeeze().tolist()
+        res = torch.zeros(len(X), self._n_c)
+        for i, l in enumerate(predicted):
+            res[i][l] = 1
+        return res
 
 # def test():
 #     import torch
