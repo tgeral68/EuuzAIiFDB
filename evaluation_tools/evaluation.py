@@ -78,6 +78,38 @@ def mean_conductance(prediction, adjency_matrix):
     
     return score/K
 
+def topk_conductance(prediction, adjency_matrix, k=1):
+    N = prediction.size(0)
+    # the number of clusters
+    K = prediction.size(-1)
+    # print(K)
+
+    I = {i for i in range(len(prediction))}
+
+    score = []
+    for c in range(K):
+        # print(prediction[:, c].nonzero().flatten())
+        c_nodes = set(prediction[:, c].nonzero().flatten().tolist())
+        nc_nodes = I - c_nodes
+        cut_score_a = 0
+        for i in c_nodes:
+            cut_score_a += len(set(adjency_matrix[i]) - c_nodes)
+            # for j in nc_nodes:
+            #     if(j in adjency_matrix[i]):
+            #         cut_score_a += 1
+        cut_score_b = 0
+        for i in c_nodes:
+            cut_score_b += len(adjency_matrix[i])
+
+        cut_score_c = 0
+        for i in nc_nodes:
+            cut_score_c += len(adjency_matrix[i])
+        if(cut_score_b==0 or cut_score_c ==0):
+            pass
+        else:
+            score.append(cut_score_a/(min(cut_score_b, cut_score_c)))
+    
+    return score/K
 class PrecisionScore(object):
     def __init__(self, at=5):
         self.at = at

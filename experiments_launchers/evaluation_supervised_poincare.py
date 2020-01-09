@@ -27,7 +27,8 @@ dataset_dict = { "karate": corpora.load_karate,
             "dblp": corpora.load_dblp,
             "books": corpora.load_books,
             "polblog": corpora.load_polblogs,
-            "adjnoun": corpora.load_adjnoun
+            "adjnoun": corpora.load_adjnoun,
+            "wikipedia": corpora.load_wikipedia
           }
 
 # loading the configuration file

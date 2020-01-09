@@ -40,7 +40,7 @@ class RandomWalkCorpus(Dataset):
             
             if(random.random()>self.p_c):
                 break
-            c_index = self.X[index][random.randint(0,len(self.X[index])-1)]
+            c_index = self.X[c_index][random.randint(0,len(self.X[c_index])-1)]
             path.append(c_index)
         return path if(self.path) else [c_index] 
 
@@ -199,6 +199,10 @@ def load_dblp():
         print("Please download the dataset DBLP and set the mat and txt file in data/DBLP/")
         quit(2) 
 
+def load_wikipedia():
+    mat_path  = "data/wikipedia/wikipedia.mat"
+    label_path = "data/wikipedia/wikipedia.labels"
+    return loading_matlab_corpus(mat_path, label_path)
 
 def load_karate():
     matrix_path = "data/Karate.txt"
